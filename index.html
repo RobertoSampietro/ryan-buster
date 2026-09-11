@@ -278,7 +278,10 @@ function renderDetail(flight, data) {
   } else {
     html += `<p style="margin-top:10px;">${data.message || "Nessuna informazione disponibile."}</p>`;
     if (data.debug) {
-      html += `<p class="meta" style="margin-top:10px;">Debug: ${data.debug.legsFound} voli trovati per l'aereo, aeroporto cercato: ${data.debug.depIcaoUpper}</p>`;
+      html += `<p class="meta" style="margin-top:10px;">Debug: credenziali OpenSky attive: ${data.debug.hasOpenSkyCredentials}</p>`;
+      html += `<p class="meta">Voli trovati: ${data.debug.legsFound}${data.debug.legsError ? " (errore: " + data.debug.legsError + ")" : ""}</p>`;
+      html += `<p class="meta">Arrivi controllati: ${data.debug.arrivalsCount}${data.debug.arrivalsError ? " (errore: " + data.debug.arrivalsError + ")" : ""}</p>`;
+      html += `<p class="meta">Aeroporto cercato: ${data.debug.depIcaoUpper}, icao24: ${data.debug.icao24}</p>`;
       if (data.debug.legsSample.length) {
         html += data.debug.legsSample
           .map(
