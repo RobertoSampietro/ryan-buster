@@ -5,6 +5,7 @@ import {
   findInboundLeg,
   getArrivalsAtAirport,
   findArrivalByIcao24,
+  lastAuthOutcome,
 } from "../lib/opensky.js";
 import { searchByFlightIcao, normalizeFlight } from "../lib/aviationstack.js";
 
@@ -136,6 +137,7 @@ export default async function handler(req, res) {
         hasOpenSkyCredentials: !!(
           process.env.OPENSKY_CLIENT_ID && process.env.OPENSKY_CLIENT_SECRET
         ),
+        authOutcome: lastAuthOutcome,
         legsSample: legs.map((l) => ({
           callsign: (l.callsign || "").trim(),
           dep: l.estDepartureAirport,
