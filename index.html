@@ -221,6 +221,7 @@ async function showDetail(flight) {
 
   const params = new URLSearchParams({
     depIcao: flight.departure.airportIcao || "",
+    depIata: flight.departure.airportIata || "",
     flightDeparture: flight.departure.scheduled || "",
   });
   if (flight.aircraft.icao24) params.set("icao24", flight.aircraft.icao24);
@@ -236,6 +237,11 @@ async function showDetail(flight) {
 }
 
 function renderDetail(flight, data) {
+  if (data.error) {
+    $("detailPanel").innerHTML = `<p class="error">Errore: ${data.error}</p>`;
+    return;
+  }
+
   let html = `<span class="status-badge status-${data.status}">${statusLabel(data.status)}</span>`;
   html += `<div class="result-row"><span class="label">Volo</span><span>${flight.flightIata || "?"}</span></div>`;
   html += `<div class="result-row"><span class="label">Tratta</span><span>${flight.departure.airportIata} &rarr; ${flight.arrival.airportIata}</span></div>`;
