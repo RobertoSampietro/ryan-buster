@@ -48,15 +48,26 @@ export default async function handler(req, res) {
       : Math.floor(Date.now() / 1000);
 
     const depIcaoUpper = depIcao.toUpperCase();
-    const legs = await getAircraftFlights(icao24, 18);
+
+    let legs = [];
+    try {
+      legs = await getAircraftFlights(icao24, 18);
+    } catch (e) {
+      // OpenSky per-aircraft history failed (rate limit or timeout) - not fatal,
+      // we'll still try the airport-arrivals fallback below.
+    }
     let inbound = findInboundLeg(legs, depIcaoUpper, beforeTs);
 
     // Fallback: /flights/aircraft can lag behind. Cross-check the
     // airport-centric arrivals feed too, it's often fresher.
     if (!inbound || !inbound.lastSeen) {
-      const arrivals = await getArrivalsAtAirport(depIcaoUpper, 18);
-      const arrivalMatch = findArrivalByIcao24(arrivals, icao24, beforeTs);
-      if (arrivalMatch && arrivalMatch.lastSeen) inbound = arrivalMatch;
+      try {
+        const arrivals = await getArrivalsAtAirport(depIcaoUpper, 18);
+        const arrivalMatch = findArrivalByIcao24(arrivals, icao24, beforeTs);
+        if (arrivalMatch && arrivalMatch.lastSeen) inbound = arrivalMatch;
+      } catch (e) {
+        // Same as above - not fatal.
+      }
     }
 
     if (inbound && inbound.lastSeen) {
@@ -90,7 +101,12 @@ export default async function handler(req, res) {
     }
 
     // Not landed yet at our airport per OpenSky history - check if it's live/airborne.
-    const live = await getLiveState(icao24);
+    let live = null;
+    try {
+      live = await getLiveState(icao24);
+    } catch (e) {
+      // Not fatal - fall through to "unknown".
+    }
     if (live && !live.onGround) {
       res.status(200).json({
         status: "en_route",
