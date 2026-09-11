@@ -204,23 +204,12 @@ function fmtTime(iso) {
   return `${d}/${mo} ${h}:${mi}`;
 }
 
-// OpenSky timestamps ARE real epoch seconds (no mislabeling issue), so
-// these can go through a normal Date conversion.
-function fmtEpochTime(iso) {
-  if (!iso) return "?";
-  try {
-    return new Date(iso).toLocaleString("it-IT", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
-  } catch {
-    return iso;
-  }
-}
-
 async function showDetail(flight) {
   $("searchView").style.display = "none";
   $("detailView").style.display = "block";
   $("detailPanel").innerHTML = '<p class="loading">Controllo la tratta precedente...</p>';
 
-  if (!flight.aircraft.registration && !flight.aircraft.icao24) {
+  if (!flight.aircraft.registration) {
     $("detailPanel").innerHTML = `
       <span class="status-badge status-no_aircraft">Aereo non assegnato</span>
       <p>Questo volo non ha ancora un aereo assegnato. Riprova qualche ora prima della partenza.</p>`;
@@ -228,12 +217,10 @@ async function showDetail(flight) {
   }
 
   const params = new URLSearchParams({
-    depIcao: flight.departure.airportIcao || "",
+    registration: flight.aircraft.registration,
     depIata: flight.departure.airportIata || "",
     flightDeparture: flight.departure.scheduled || "",
   });
-  if (flight.aircraft.icao24) params.set("icao24", flight.aircraft.icao24);
-  else params.set("registration", flight.aircraft.registration);
 
   try {
     const res = await fetch(`/api/delay?${params.toString()}`);
@@ -256,40 +243,29 @@ function renderDetail(flight, data) {
   html += `<div class="result-row"><span class="label">Partenza prevista</span><span>${fmtTime(flight.departure.scheduled)}</span></div>`;
 
   if (data.status === "landed") {
-    html += `<div class="result-row"><span class="label">Aereo atterrato qui alle</span><span>${fmtEpochTime(data.arrivedAt)}</span></div>`;
-    if (data.minutesAgo != null) {
-      html += `<div class="result-row"><span class="label">Atterrato</span><span>${data.minutesAgo} min fa</span></div>`;
-    }
-    if (data.inboundCallsign) {
-      html += `<div class="result-row"><span class="label">Volo precedente</span><span>${data.inboundCallsign}</span></div>`;
-    }
-    if (data.aviationstack?.arrival?.delayMinutes != null) {
-      html += `<div class="result-row"><span class="label">Ritardo all'arrivo</span><span>${data.aviationstack.arrival.delayMinutes} min</span></div>`;
+    html += `<div class="result-row"><span class="label">Volo precedente</span><span>${data.inboundFlight || "?"}</span></div>`;
+    html += `<div class="result-row"><span class="label">Proveniva da</span><span>${data.inboundDepartureAirport || "?"}</span></div>`;
+    html += `<div class="result-row"><span class="label">Atterrato qui alle</span><span>${fmtTime(data.arrivedAt)}</span></div>`;
+    if (data.arrivalDelayMinutes != null) {
+      html += `<div class="result-row"><span class="label">Ritardo all'arrivo</span><span>${data.arrivalDelayMinutes} min</span></div>`;
     } else {
-      html += `<p class="meta" style="margin-top:8px;">Ritardo esatto non disponibile, ma l'aereo e' gia' a terra qui (vedi sopra).</p>`;
+      html += `<p class="meta" style="margin-top:8px;">Ritardo esatto non disponibile, ma l'aereo e' gia' a terra qui.</p>`;
     }
   } else if (data.status === "en_route") {
+    html += `<div class="result-row"><span class="label">Volo precedente</span><span>${data.inboundFlight || "?"}</span></div>`;
+    html += `<div class="result-row"><span class="label">Proveniva da</span><span>${data.inboundDepartureAirport || "?"}</span></div>`;
+    if (data.departureDelayMinutes != null) {
+      html += `<div class="result-row"><span class="label">Ritardo alla partenza</span><span>${data.departureDelayMinutes} min</span></div>`;
+    }
     html += `<p style="margin-top:10px;">${data.message}</p>`;
     if (data.live) {
-      html += `<div class="result-row"><span class="label">Callsign</span><span>${data.live.callsign || "?"}</span></div>`;
-      html += `<div class="result-row"><span class="label">Quota</span><span>${data.live.baroAltitudeM ? Math.round(data.live.baroAltitudeM) + " m" : "?"}</span></div>`;
-      html += `<div class="result-row"><span class="label">Velocita'</span><span>${data.live.velocityMs ? Math.round(data.live.velocityMs * 3.6) + " km/h" : "?"}</span></div>`;
+      html += `<div class="result-row"><span class="label">Quota</span><span>${data.live.altitude ? Math.round(data.live.altitude) + " m" : "?"}</span></div>`;
+      html += `<div class="result-row"><span class="label">Velocita'</span><span>${data.live.speedHorizontal ? Math.round(data.live.speedHorizontal) + " km/h" : "?"}</span></div>`;
     }
   } else {
     html += `<p style="margin-top:10px;">${data.message || "Nessuna informazione disponibile."}</p>`;
     if (data.debug) {
-      html += `<p class="meta" style="margin-top:10px;">Debug: esito autenticazione OpenSky: ${data.debug.authOutcome}</p>`;
-      html += `<p class="meta">Voli trovati: ${data.debug.legsFound}${data.debug.legsError ? " (errore: " + data.debug.legsError + ")" : ""}</p>`;
-      html += `<p class="meta">Arrivi controllati: ${data.debug.arrivalsCount}${data.debug.arrivalsError ? " (errore: " + data.debug.arrivalsError + ")" : ""}</p>`;
-      html += `<p class="meta">Aeroporto cercato: ${data.debug.depIcaoUpper}, icao24: ${data.debug.icao24}</p>`;
-      if (data.debug.legsSample.length) {
-        html += data.debug.legsSample
-          .map(
-            (l) =>
-              `<div class="result-row"><span class="label">${l.callsign || "?"}</span><span>${l.dep || "?"} &rarr; ${l.arr || "?"}</span></div>`
-          )
-          .join("");
-      }
+      html += `<p class="meta" style="margin-top:10px;">Debug: ${data.debug.totalFlightsAtAirport} voli trovati per ${data.debug.depIataUpper}, ${data.debug.candidatesFound} corrispondono alla registrazione ${data.debug.registration}${data.debug.fetchError ? " (errore: " + data.debug.fetchError + ")" : ""}</p>`;
     }
   }
 
