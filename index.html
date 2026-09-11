@@ -163,11 +163,19 @@ async function runSearch(params) {
 }
 
 function renderResults(flights) {
-  if (!flights.length) {
-    $("results").innerHTML = '<p class="loading">Nessun volo trovato.</p>';
+  // Only show flights departing today (matching the airport-local date
+  // in the string, no timezone conversion needed).
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayFlights = flights.filter((f) => {
+    const dep = f.departure.scheduled;
+    return dep && dep.slice(0, 10) === todayStr;
+  });
+
+  if (!todayFlights.length) {
+    $("results").innerHTML = '<p class="loading">Nessun volo trovato per oggi.</p>';
     return;
   }
-  $("results").innerHTML = flights
+  $("results").innerHTML = todayFlights
     .map(
       (f, i) => `
     <div class="flight-card" data-idx="${i}">
@@ -179,7 +187,7 @@ function renderResults(flights) {
     .join("");
 
   document.querySelectorAll(".flight-card").forEach((card) => {
-    card.addEventListener("click", () => showDetail(flights[card.dataset.idx]));
+    card.addEventListener("click", () => showDetail(todayFlights[card.dataset.idx]));
   });
 }
 
@@ -267,7 +275,7 @@ function renderDetail(flight, data) {
       html += `<div class="result-row"><span class="label">Quota</span><span>${data.live.baroAltitudeM ? Math.round(data.live.baroAltitudeM) + " m" : "?"}</span></div>`;
       html += `<div class="result-row"><span class="label">Velocita'</span><span>${data.live.velocityMs ? Math.round(data.live.velocityMs * 3.6) + " km/h" : "?"}</span></div>`;
     }
-    } else {
+  } else {
     html += `<p style="margin-top:10px;">${data.message || "Nessuna informazione disponibile."}</p>`;
     if (data.debug) {
       html += `<p class="meta" style="margin-top:10px;">Debug: ${data.debug.legsFound} voli trovati per l'aereo, aeroporto cercato: ${data.debug.depIcaoUpper}</p>`;
