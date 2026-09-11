@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ritardo Reale - Flight Delay Tracker</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --good: #3fb950;
+    --warn: #d29922;
+    --bad: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  p.sub { color: var(--muted); margin-top: 0; font-size: 0.9rem; }
+
+  .tabs { display: flex; gap: 8px; margin: 20px 0 16px; }
+  .tab {
+    flex: 1; padding: 10px; text-align: center; border-radius: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    cursor: pointer; color: var(--muted); font-size: 0.9rem;
+  }
+  .tab.active { color: var(--text); border-color: var(--accent); }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+  }
+  input {
+    width: 100%; padding: 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: #0d1117; color: var(--text);
+    font-size: 1rem; margin-bottom: 10px;
+  }
+  .row { display: flex; gap: 10px; }
+  .row input { flex: 1; }
+  button {
+    width: 100%; padding: 11px; border-radius: 6px; border: none;
+    background: var(--accent); color: #0d1117; font-weight: 600;
+    font-size: 0.95rem; cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  .flight-card {
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+    margin-top: 10px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .flight-card:hover { border-color: var(--accent); }
+  .flight-card .top { display: flex; justify-content: space-between; font-weight: 600; }
+  .flight-card .meta { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+
+  .status-badge {
+    display: inline-block; padding: 3px 8px; border-radius: 20px;
+    font-size: 0.75rem; font-weight: 600; margin-bottom: 10px;
+  }
+  .status-landed { background: rgba(63,185,80,0.15); color: var(--good); }
+  .status-en_route { background: rgba(210,153,34,0.15); color: var(--warn); }
+  .status-unknown, .status-no_aircraft { background: rgba(248,81,73,0.15); color: var(--bad); }
+
+  .result-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+  .result-row:last-child { border-bottom: none; }
+  .result-row .label { color: var(--muted); }
+
+  .loading { color: var(--muted); font-size: 0.9rem; }
+  .error { color: var(--bad); font-size: 0.9rem; }
+  .back-link { color: var(--accent); font-size: 0.85rem; cursor: pointer; margin-bottom: 12px; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ritardo Reale</h1>
+  <p class="sub">Scopri il ritardo accumulato dall'aereo prima del tuo volo.</p>
+
+  <div id="searchView">
+    <div class="tabs">
+      <div class="tab active" data-tab="number">Numero volo</div>
+      <div class="tab" data-tab="route">Tratta + data</div>
+    </div>
+
+    <div class="panel" id="panelNumber">
+      <input id="flightNumberInput" placeholder="Es. AZ204" autocapitalize="characters" />
+      <button id="btnSearchNumber">Cerca</button>
+    </div>
+
+    <div class="panel" id="panelRoute" style="display:none;">
+      <div class="row">
+        <input id="depInput" placeholder="Partenza IATA (es. VLC)" autocapitalize="characters" />
+        <input id="arrInput" placeholder="Arrivo IATA (es. FCO)" autocapitalize="characters" />
+      </div>
+      <button id="btnSearchRoute">Cerca</button>
+    </div>
+
+    <div id="searchStatus"></div>
+    <div id="results"></div>
+  </div>
+
+  <div id="detailView" style="display:none;">
+    <span class="back-link" id="backLink">&larr; Torna alla ricerca</span>
+    <div class="panel" id="detailPanel"></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+document.querySelectorAll(".tab").forEach((t) => {
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
+    t.classList.add("active");
+    const isNumber = t.dataset.tab === "number";
+    $("panelNumber").style.display = isNumber ? "block" : "none";
+    $("panelRoute").style.display = isNumber ? "none" : "block";
+  });
+});
+
+$("btnSearchNumber").addEventListener("click", () => {
+  const v = $("flightNumberInput").value.trim();
+  if (!v) return;
+  runSearch({ flight: v });
+});
+
+$("btnSearchRoute").addEventListener("click", () => {
+  const dep = $("depInput").value.trim();
+  const arr = $("arrInput").value.trim();
+  if (!dep || !arr) return;
+  runSearch({ dep, arr });
+});
+
+$("backLink").addEventListener("click", () => {
+  $("detailView").style.display = "none";
+  $("searchView").style.display = "block";
+});
+
+async function runSearch(params) {
+  $("results").innerHTML = "";
+  $("searchStatus").innerHTML = '<p class="loading">Ricerca in corso...</p>';
+  const qs = new URLSearchParams(params).toString();
+  try {
+    const res = await fetch(`/api/search?${qs}`);
+    const data = await res.json();
+    if (data.error) {
+      $("searchStatus").innerHTML = `<p class="error">${data.error}</p>`;
+      return;
+    }
+    $("searchStatus").innerHTML = "";
+    renderResults(data.flights || []);
+  } catch (e) {
+    $("searchStatus").innerHTML = `<p class="error">Errore: ${e.message}</p>`;
+  }
+}
+
+function renderResults(flights) {
+  if (!flights.length) {
+    $("results").innerHTML = '<p class="loading">Nessun volo trovato.</p>';
+    return;
+  }
+  $("results").innerHTML = flights
+    .map(
+      (f, i) => `
+    <div class="flight-card" data-idx="${i}">
+      <div class="top"><span>${f.flightIata || f.flightIcao || "?"}</span><span>${f.status || ""}</span></div>
+      <div class="meta">${f.departure.airportIata || "?"} &rarr; ${f.arrival.airportIata || "?"} &middot; partenza prevista ${fmtTime(f.departure.scheduled)}</div>
+      <div class="meta">${f.aircraft.registration ? "Aereo: " + f.aircraft.registration : "Aereo non ancora assegnato"}</div>
+    </div>`
+    )
+    .join("");
+
+  document.querySelectorAll(".flight-card").forEach((card) => {
+    card.addEventListener("click", () => showDetail(flights[card.dataset.idx]));
+  });
+}
+
+function fmtTime(iso) {
+  if (!iso) return "?";
+  try {
+    return new Date(iso).toLocaleString("it-IT", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
+  } catch {
+    return iso;
+  }
+}
+
+async function showDetail(flight) {
+  $("searchView").style.display = "none";
+  $("detailView").style.display = "block";
+  $("detailPanel").innerHTML = '<p class="loading">Controllo la tratta precedente...</p>';
+
+  if (!flight.aircraft.registration && !flight.aircraft.icao24) {
+    $("detailPanel").innerHTML = `
+      <span class="status-badge status-no_aircraft">Aereo non assegnato</span>
+      <p>Questo volo non ha ancora un aereo assegnato. Riprova qualche ora prima della partenza.</p>`;
+    return;
+  }
+
+  const params = new URLSearchParams({
+    depIcao: flight.departure.airportIcao || "",
+    flightDeparture: flight.departure.scheduled || "",
+  });
+  if (flight.aircraft.icao24) params.set("icao24", flight.aircraft.icao24);
+  else params.set("registration", flight.aircraft.registration);
+
+  try {
+    const res = await fetch(`/api/delay?${params.toString()}`);
+    const data = await res.json();
+    renderDetail(flight, data);
+  } catch (e) {
+    $("detailPanel").innerHTML = `<p class="error">Errore: ${e.message}</p>`;
+  }
+}
+
+function renderDetail(flight, data) {
+  let html = `<span class="status-badge status-${data.status}">${statusLabel(data.status)}</span>`;
+  html += `<div class="result-row"><span class="label">Volo</span><span>${flight.flightIata || "?"}</span></div>`;
+  html += `<div class="result-row"><span class="label">Tratta</span><span>${flight.departure.airportIata} &rarr; ${flight.arrival.airportIata}</span></div>`;
+  html += `<div class="result-row"><span class="label">Partenza prevista</span><span>${fmtTime(flight.departure.scheduled)}</span></div>`;
+
+  if (data.status === "landed") {
+    html += `<div class="result-row"><span class="label">Aereo atterrato qui alle</span><span>${fmtTime(data.arrivedAt)}</span></div>`;
+    if (data.inboundCallsign) {
+      html += `<div class="result-row"><span class="label">Volo precedente</span><span>${data.inboundCallsign}</span></div>`;
+    }
+    if (data.aviationstack?.arrival?.delayMinutes != null) {
+      html += `<div class="result-row"><span class="label">Ritardo all'arrivo</span><span>${data.aviationstack.arrival.delayMinutes} min</span></div>`;
+    } else {
+      html += `<p class="meta" style="margin-top:8px;">Dati di ritardo non disponibili per la tratta precedente, ma l'aereo risulta gia' a terra qui.</p>`;
+    }
+  } else if (data.status === "en_route") {
+    html += `<p style="margin-top:10px;">${data.message}</p>`;
+    if (data.live) {
+      html += `<div class="result-row"><span class="label">Callsign</span><span>${data.live.callsign || "?"}</span></div>`;
+      html += `<div class="result-row"><span class="label">Quota</span><span>${data.live.baroAltitudeM ? Math.round(data.live.baroAltitudeM) + " m" : "?"}</span></div>`;
+      html += `<div class="result-row"><span class="label">Velocita'</span><span>${data.live.velocityMs ? Math.round(data.live.velocityMs * 3.6) + " km/h" : "?"}</span></div>`;
+    }
+  } else {
+    html += `<p style="margin-top:10px;">${data.message || "Nessuna informazione disponibile."}</p>`;
+  }
+
+  $("detailPanel").innerHTML = html;
+}
+
+function statusLabel(status) {
+  return { landed: "Aereo gia' qui", en_route: "In volo verso di noi", unknown: "Sconosciuto", no_aircraft: "Aereo non assegnato" }[status] || status;
+}
+</script>
+</body>
+</html>
