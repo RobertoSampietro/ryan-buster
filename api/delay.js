@@ -50,23 +50,26 @@ export default async function handler(req, res) {
     const depIcaoUpper = depIcao.toUpperCase();
 
     let legs = [];
+    let legsError = null;
     try {
       legs = await getAircraftFlights(icao24, 18);
     } catch (e) {
-      // OpenSky per-aircraft history failed (rate limit or timeout) - not fatal,
-      // we'll still try the airport-arrivals fallback below.
+      legsError = e.message;
     }
     let inbound = findInboundLeg(legs, depIcaoUpper, beforeTs);
 
     // Fallback: /flights/aircraft can lag behind. Cross-check the
     // airport-centric arrivals feed too, it's often fresher.
+    let arrivalsError = null;
+    let arrivalsCount = 0;
     if (!inbound || !inbound.lastSeen) {
       try {
         const arrivals = await getArrivalsAtAirport(depIcaoUpper, 18);
+        arrivalsCount = arrivals.length;
         const arrivalMatch = findArrivalByIcao24(arrivals, icao24, beforeTs);
         if (arrivalMatch && arrivalMatch.lastSeen) inbound = arrivalMatch;
       } catch (e) {
-        // Same as above - not fatal.
+        arrivalsError = e.message;
       }
     }
 
@@ -125,7 +128,14 @@ export default async function handler(req, res) {
         "Nessun volo in arrivo trovato per questo aereo verso il tuo aeroporto nelle ultime 18 ore, e l'aereo non risulta in volo ora. Potrebbe essere gia' a terra da prima, o fuori copertura ADS-B.",
       debug: {
         depIcaoUpper,
+        icao24,
         legsFound: legs.length,
+        legsError,
+        arrivalsCount,
+        arrivalsError,
+        hasOpenSkyCredentials: !!(
+          process.env.OPENSKY_CLIENT_ID && process.env.OPENSKY_CLIENT_SECRET
+        ),
         legsSample: legs.map((l) => ({
           callsign: (l.callsign || "").trim(),
           dep: l.estDepartureAirport,
