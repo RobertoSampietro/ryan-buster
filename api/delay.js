@@ -123,6 +123,21 @@ export default async function handler(req, res) {
       icao24,
       message:
         "Nessun volo in arrivo trovato per questo aereo verso il tuo aeroporto nelle ultime 18 ore, e l'aereo non risulta in volo ora. Potrebbe essere gia' a terra da prima, o fuori copertura ADS-B.",
+      debug: {
+        depIcaoUpper,
+        legsFound: legs.length,
+        legsSample: legs.map((l) => ({
+          callsign: (l.callsign || "").trim(),
+          dep: l.estDepartureAirport,
+          arr: l.estArrivalAirport,
+          firstSeen: l.firstSeen
+            ? new Date(l.firstSeen * 1000).toISOString()
+            : null,
+          lastSeen: l.lastSeen
+            ? new Date(l.lastSeen * 1000).toISOString()
+            : null,
+        })),
+      },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
