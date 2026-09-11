@@ -5,41 +5,38 @@ by tracking the flight it operated right before yours.
 
 ## How it works
 
-1. You search a flight (by number, or by route + it shows today's options).
+1. You search a flight (by number, or by route, results are filtered to today).
 2. Backend calls **AviationStack** to get the scheduled flight and, if assigned
-   (usually only a few hours before departure), the aircraft's registration/ICAO24.
-3. Backend resolves registration -> ICAO24 via **adsbdb.com** (free, no key) if needed.
-4. Backend queries **OpenSky Network** `flights/aircraft` for that ICAO24's last
-   ~18h of activity, looking for the leg that landed at *your* departure airport.
-5. If that inbound leg already landed: cross-references it against AviationStack
-   (by ICAO callsign) to pull its arrival delay in minutes.
-6. If the aircraft hasn't landed yet: falls back to OpenSky's live state vector
-   (`states/all`) to show it's still en route (altitude, speed, callsign).
+   (usually only a few hours before departure), the aircraft's registration.
+3. Backend queries AviationStack again for all flights arriving at *your*
+   departure airport, and matches by aircraft **registration** to find the
+   inbound leg that aircraft just flew.
+4. If that leg already landed: AviationStack gives the actual arrival time
+   and delay in minutes directly, that's the delay your aircraft is carrying.
+5. If the aircraft hasn't landed yet: shows it's en route, with live position
+   if available.
+
+Everything runs on a single data provider (AviationStack). No other API keys
+or accounts are needed.
 
 ## Known limits
 
 - Aircraft is usually only assigned a few hours before departure. Searching
   days ahead will show "aereo non assegnato". This matches your stated use case.
-- Anonymous OpenSky calls are rate-limited (~400/day). Fine for personal use,
-  not for heavy traffic.
-- AviationStack free tier is real-time/current-day only, HTTP-only (that's why
-  the key lives server-side, never call it from the browser).
-- Delay minutes for the inbound leg depend on AviationStack having that route
-  indexed. When it doesn't, you still get the OpenSky landing time.
+- Free tier is capped at **100 requests/month**. Each flight check uses 1-2 calls.
+- AviationStack's free tier is real-time/near-term data, coverage of the
+  inbound leg depends on it still being in that window.
 
 ## Project structure
 
-```
 api/
-  search.js   - GET /api/search?flight=AZ204  or  ?dep=VLC&arr=FCO
-  delay.js    - GET /api/delay?icao24=...&depIcao=...&flightDeparture=...
+search.js - GET /api/search?flight=AZ204 or ?dep=VLC&arr=FCO
+delay.js - GET /api/delay?registration=...&depIata=...
 lib/
-  aviationstack.js
-  opensky.js
-  adsbdb.js
+aviationstack.js
 public/
-  index.html  - the whole frontend, single file
-```
+index.html - the whole frontend, single file
+
 
 ## Setup
 
@@ -54,12 +51,6 @@ Set your AviationStack key (free tier at aviationstack.com):
 vercel env add AVIATIONSTACK_KEY
 ```
 
-or for local dev, create `.env` (already gitignored):
-
-```
-AVIATIONSTACK_KEY=your_key_here
-```
-
 ## Deploy
 
 ```bash
@@ -71,7 +62,6 @@ repo in the Vercel dashboard).
 
 ## Next steps / ideas
 
-- Cache OpenSky responses for a few minutes to stay under rate limits
 - Auto-refresh the detail view every 60s while status is "en_route"
 - Airport autocomplete for the route search (currently raw IATA input)
 - Push notification when the inbound delay crosses a threshold you set
