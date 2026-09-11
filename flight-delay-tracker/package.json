@@ -1,0 +1,10 @@
+{
+  "name": "flight-delay-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Find the real delay an aircraft is carrying before it operates your flight.",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev"
+  }
+}
