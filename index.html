@@ -183,7 +183,22 @@ function renderResults(flights) {
   });
 }
 
+// AviationStack returns times in the LOCAL time of the airport, but always
+// tags them with a "+00:00" suffix regardless of the real offset. Parsing
+// that with `new Date()` makes the browser re-convert it to your own
+// timezone, shifting the hour. We only ever want the wall-clock numbers as
+// given, so we read them straight out of the string instead of via Date.
 function fmtTime(iso) {
+  if (!iso) return "?";
+  const m = iso.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return iso;
+  const [, , mo, d, h, mi] = m;
+  return `${d}/${mo} ${h}:${mi}`;
+}
+
+// OpenSky timestamps ARE real epoch seconds (no mislabeling issue), so
+// these can go through a normal Date conversion.
+function fmtEpochTime(iso) {
   if (!iso) return "?";
   try {
     return new Date(iso).toLocaleString("it-IT", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
@@ -227,14 +242,17 @@ function renderDetail(flight, data) {
   html += `<div class="result-row"><span class="label">Partenza prevista</span><span>${fmtTime(flight.departure.scheduled)}</span></div>`;
 
   if (data.status === "landed") {
-    html += `<div class="result-row"><span class="label">Aereo atterrato qui alle</span><span>${fmtTime(data.arrivedAt)}</span></div>`;
+    html += `<div class="result-row"><span class="label">Aereo atterrato qui alle</span><span>${fmtEpochTime(data.arrivedAt)}</span></div>`;
+    if (data.minutesAgo != null) {
+      html += `<div class="result-row"><span class="label">Atterrato</span><span>${data.minutesAgo} min fa</span></div>`;
+    }
     if (data.inboundCallsign) {
       html += `<div class="result-row"><span class="label">Volo precedente</span><span>${data.inboundCallsign}</span></div>`;
     }
     if (data.aviationstack?.arrival?.delayMinutes != null) {
       html += `<div class="result-row"><span class="label">Ritardo all'arrivo</span><span>${data.aviationstack.arrival.delayMinutes} min</span></div>`;
     } else {
-      html += `<p class="meta" style="margin-top:8px;">Dati di ritardo non disponibili per la tratta precedente, ma l'aereo risulta gia' a terra qui.</p>`;
+      html += `<p class="meta" style="margin-top:8px;">Ritardo esatto non disponibile, ma l'aereo e' gia' a terra qui (vedi sopra).</p>`;
     }
   } else if (data.status === "en_route") {
     html += `<p style="margin-top:10px;">${data.message}</p>`;
