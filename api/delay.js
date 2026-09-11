@@ -1,154 +1,87 @@
-import { registrationToIcao24, iataToIcaoAirport } from "../lib/adsbdb.js";
 import {
-  getAircraftFlights,
-  getLiveState,
-  findInboundLeg,
-  getArrivalsAtAirport,
-  findArrivalByIcao24,
-  lastAuthOutcome,
-} from "../lib/opensky.js";
-import { searchByFlightIcao, normalizeFlight } from "../lib/aviationstack.js";
+  searchByArrivalAirport,
+  normalizeFlight,
+} from "../lib/aviationstack.js";
 
 export default async function handler(req, res) {
   try {
-    const {
-      icao24: icao24Param,
-      registration,
-      depIcao: depIcaoParam,
-      depIata,
-      flightDeparture,
-    } = req.query;
+    const { registration, depIata, flightDeparture } = req.query;
 
-    let depIcao = depIcaoParam || null;
-    if (!depIcao && depIata) {
-      depIcao = await iataToIcaoAirport(depIata);
-    }
-    if (!depIcao) {
-      res.status(400).json({
-        error:
-          "Impossibile determinare l'aeroporto di partenza (nessun codice ICAO o IATA valido).",
-      });
+    if (!depIata) {
+      res.status(400).json({ error: "Parametro 'depIata' mancante." });
       return;
     }
 
-    let icao24 = icao24Param ? icao24Param.toLowerCase() : null;
-    if (!icao24 && registration) {
-      icao24 = await registrationToIcao24(registration);
-    }
-    if (!icao24) {
+    if (!registration) {
       res.status(200).json({
         status: "no_aircraft",
         message:
-          "Aereo non ancora assegnato a questo volo, o registrazione non trovata. Riprova piu' vicino alla partenza.",
+          "Aereo non ancora assegnato a questo volo. Riprova piu' vicino alla partenza.",
       });
       return;
     }
 
-    const beforeTs = flightDeparture
-      ? Math.floor(new Date(flightDeparture).getTime() / 1000)
-      : Math.floor(Date.now() / 1000);
-
-    const depIcaoUpper = depIcao.toUpperCase();
-
-    let legs = [];
-    let legsError = null;
+    let raw = [];
+    let fetchError = null;
     try {
-      legs = await getAircraftFlights(icao24, 18);
+      raw = await searchByArrivalAirport(depIata.toUpperCase());
     } catch (e) {
-      legsError = e.message;
-    }
-    let inbound = findInboundLeg(legs, depIcaoUpper, beforeTs);
-
-    // Fallback: /flights/aircraft can lag behind. Cross-check the
-    // airport-centric arrivals feed too, it's often fresher.
-    let arrivalsError = null;
-    let arrivalsCount = 0;
-    if (!inbound || !inbound.lastSeen) {
-      try {
-        const arrivals = await getArrivalsAtAirport(depIcaoUpper, 18);
-        arrivalsCount = arrivals.length;
-        const arrivalMatch = findArrivalByIcao24(arrivals, icao24, beforeTs);
-        if (arrivalMatch && arrivalMatch.lastSeen) inbound = arrivalMatch;
-      } catch (e) {
-        arrivalsError = e.message;
-      }
+      fetchError = e.message;
     }
 
-    if (inbound && inbound.lastSeen) {
-      // Aircraft has already landed at our departure airport.
-      let delayInfo = null;
-      if (inbound.callsign) {
-        try {
-          const raw = await searchByFlightIcao(inbound.callsign.trim());
-          if (raw.length) delayInfo = normalizeFlight(raw[0]);
-        } catch {
-          // AviationStack lookup failed/quota hit - not fatal, we still have OpenSky data.
-        }
-      }
+    const flights = raw.map(normalizeFlight);
+    const regUpper = registration.toUpperCase();
+    const candidates = flights.filter(
+      (f) => f.aircraft.registration && f.aircraft.registration.toUpperCase() === regUpper
+    );
 
-      const minutesAgo = Math.max(
-        0,
-        Math.round((Date.now() / 1000 - inbound.lastSeen) / 60)
+    // Prefer a completed (landed) leg, most recent first.
+    const landed = candidates
+      .filter((f) => f.status === "landed" || f.arrival.actual)
+      .sort((a, b) =>
+        (b.arrival.actual || b.arrival.scheduled || "").localeCompare(
+          a.arrival.actual || a.arrival.scheduled || ""
+        )
       );
 
+    if (landed.length) {
+      const inbound = landed[0];
       res.status(200).json({
         status: "landed",
-        icao24,
-        inboundCallsign: (inbound.callsign || "").trim(),
-        inboundDepartureAirport: inbound.estDepartureAirport,
-        inboundArrivalAirport: inbound.estArrivalAirport,
-        arrivedAt: new Date(inbound.lastSeen * 1000).toISOString(),
-        minutesAgo,
-        aviationstack: delayInfo, // has departure/arrival delayMinutes if AviationStack had data
+        inboundFlight: inbound.flightIata || inbound.flightIcao,
+        inboundDepartureAirport: inbound.departure.airportIata,
+        arrivedAt: inbound.arrival.actual || inbound.arrival.estimated,
+        arrivalDelayMinutes: inbound.arrival.delayMinutes,
       });
       return;
     }
 
-    // Not landed yet at our airport per OpenSky history - check if it's live/airborne.
-    let live = null;
-    try {
-      live = await getLiveState(icao24);
-    } catch (e) {
-      // Not fatal - fall through to "unknown".
-    }
-    if (live && !live.onGround) {
+    // Otherwise, is our aircraft currently en route (active) toward us?
+    const active = candidates.find(
+      (f) => f.status === "active" || f.status === "en-route"
+    );
+    if (active) {
       res.status(200).json({
         status: "en_route",
-        icao24,
-        live,
-        message:
-          "Aereo ancora in volo verso il tuo aeroporto di partenza. Nessun dato di ritardo storico ancora disponibile per questa tratta.",
+        inboundFlight: active.flightIata || active.flightIcao,
+        inboundDepartureAirport: active.departure.airportIata,
+        departureDelayMinutes: active.departure.delayMinutes,
+        live: active.live,
+        message: "Aereo ancora in volo verso il tuo aeroporto di partenza.",
       });
       return;
     }
 
     res.status(200).json({
       status: "unknown",
-      icao24,
       message:
-        "Nessun volo in arrivo trovato per questo aereo verso il tuo aeroporto nelle ultime 18 ore, e l'aereo non risulta in volo ora. Potrebbe essere gia' a terra da prima, o fuori copertura ADS-B.",
+        "Nessun volo trovato per questo aereo in arrivo al tuo aeroporto. Potrebbe essere gia' a terra da prima (fuori dalla finestra dati), o l'informazione non e' ancora disponibile.",
       debug: {
-        depIcaoUpper,
-        icao24,
-        legsFound: legs.length,
-        legsError,
-        arrivalsCount,
-        arrivalsError,
-        hasOpenSkyCredentials: !!(
-          process.env.OPENSKY_CLIENT_ID && process.env.OPENSKY_CLIENT_SECRET
-        ),
-        authOutcome: lastAuthOutcome,
-        legsSample: legs.map((l) => ({
-          callsign: (l.callsign || "").trim(),
-          dep: l.estDepartureAirport,
-          arr: l.estArrivalAirport,
-          firstSeen: l.firstSeen
-            ? new Date(l.firstSeen * 1000).toISOString()
-            : null,
-          lastSeen: l.lastSeen
-            ? new Date(l.lastSeen * 1000).toISOString()
-            : null,
-        })),
+        depIataUpper: depIata.toUpperCase(),
+        registration: regUpper,
+        totalFlightsAtAirport: flights.length,
+        candidatesFound: candidates.length,
+        fetchError,
       },
     });
   } catch (err) {
