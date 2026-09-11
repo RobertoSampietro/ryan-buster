@@ -3,6 +3,8 @@ import {
   getAircraftFlights,
   getLiveState,
   findInboundLeg,
+  getArrivalsAtAirport,
+  findArrivalByIcao24,
 } from "../lib/opensky.js";
 import { searchByFlightIcao, normalizeFlight } from "../lib/aviationstack.js";
 
@@ -33,8 +35,17 @@ export default async function handler(req, res) {
       ? Math.floor(new Date(flightDeparture).getTime() / 1000)
       : Math.floor(Date.now() / 1000);
 
+    const depIcaoUpper = depIcao.toUpperCase();
     const legs = await getAircraftFlights(icao24, 18);
-    const inbound = findInboundLeg(legs, depIcao.toUpperCase(), beforeTs);
+    let inbound = findInboundLeg(legs, depIcaoUpper, beforeTs);
+
+    // Fallback: /flights/aircraft can lag behind. Cross-check the
+    // airport-centric arrivals feed too, it's often fresher.
+    if (!inbound || !inbound.lastSeen) {
+      const arrivals = await getArrivalsAtAirport(depIcaoUpper, 18);
+      const arrivalMatch = findArrivalByIcao24(arrivals, icao24, beforeTs);
+      if (arrivalMatch && arrivalMatch.lastSeen) inbound = arrivalMatch;
+    }
 
     if (inbound && inbound.lastSeen) {
       // Aircraft has already landed at our departure airport.
@@ -48,15 +59,19 @@ export default async function handler(req, res) {
         }
       }
 
+      const minutesAgo = Math.max(
+        0,
+        Math.round((Date.now() / 1000 - inbound.lastSeen) / 60)
+      );
+
       res.status(200).json({
         status: "landed",
         icao24,
         inboundCallsign: (inbound.callsign || "").trim(),
         inboundDepartureAirport: inbound.estDepartureAirport,
         inboundArrivalAirport: inbound.estArrivalAirport,
-        arrivedAt: inbound.lastSeen
-          ? new Date(inbound.lastSeen * 1000).toISOString()
-          : null,
+        arrivedAt: new Date(inbound.lastSeen * 1000).toISOString(),
+        minutesAgo,
         aviationstack: delayInfo, // has departure/arrival delayMinutes if AviationStack had data
       });
       return;
