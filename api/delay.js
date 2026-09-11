@@ -1,4 +1,4 @@
-import { registrationToIcao24 } from "../lib/adsbdb.js";
+import { registrationToIcao24, iataToIcaoAirport } from "../lib/adsbdb.js";
 import {
   getAircraftFlights,
   getLiveState,
@@ -10,11 +10,23 @@ import { searchByFlightIcao, normalizeFlight } from "../lib/aviationstack.js";
 
 export default async function handler(req, res) {
   try {
-    const { icao24: icao24Param, registration, depIcao, flightDeparture } =
-      req.query;
+    const {
+      icao24: icao24Param,
+      registration,
+      depIcao: depIcaoParam,
+      depIata,
+      flightDeparture,
+    } = req.query;
 
+    let depIcao = depIcaoParam || null;
+    if (!depIcao && depIata) {
+      depIcao = await iataToIcaoAirport(depIata);
+    }
     if (!depIcao) {
-      res.status(400).json({ error: "Parametro 'depIcao' mancante." });
+      res.status(400).json({
+        error:
+          "Impossibile determinare l'aeroporto di partenza (nessun codice ICAO o IATA valido).",
+      });
       return;
     }
 
