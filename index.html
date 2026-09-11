@@ -267,8 +267,19 @@ function renderDetail(flight, data) {
       html += `<div class="result-row"><span class="label">Quota</span><span>${data.live.baroAltitudeM ? Math.round(data.live.baroAltitudeM) + " m" : "?"}</span></div>`;
       html += `<div class="result-row"><span class="label">Velocita'</span><span>${data.live.velocityMs ? Math.round(data.live.velocityMs * 3.6) + " km/h" : "?"}</span></div>`;
     }
-  } else {
+    } else {
     html += `<p style="margin-top:10px;">${data.message || "Nessuna informazione disponibile."}</p>`;
+    if (data.debug) {
+      html += `<p class="meta" style="margin-top:10px;">Debug: ${data.debug.legsFound} voli trovati per l'aereo, aeroporto cercato: ${data.debug.depIcaoUpper}</p>`;
+      if (data.debug.legsSample.length) {
+        html += data.debug.legsSample
+          .map(
+            (l) =>
+              `<div class="result-row"><span class="label">${l.callsign || "?"}</span><span>${l.dep || "?"} &rarr; ${l.arr || "?"}</span></div>`
+          )
+          .join("");
+      }
+    }
   }
 
   $("detailPanel").innerHTML = html;
