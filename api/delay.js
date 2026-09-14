@@ -5,14 +5,14 @@ import {
 
 export default async function handler(req, res) {
   try {
-    const { registration, depIata, flightDeparture } = req.query;
+    const { icao24, depIata, flightDeparture } = req.query;
 
     if (!depIata) {
       res.status(400).json({ error: "Parametro 'depIata' mancante." });
       return;
     }
 
-    if (!registration) {
+    if (!icao24) {
       res.status(200).json({
         status: "no_aircraft",
         message:
@@ -30,9 +30,9 @@ export default async function handler(req, res) {
     }
 
     const flights = raw.map(normalizeFlight);
-    const regUpper = registration.toUpperCase();
+    const icao24Lower = icao24.toLowerCase();
     const candidates = flights.filter(
-      (f) => f.aircraft.registration && f.aircraft.registration.toUpperCase() === regUpper
+      (f) => f.aircraft.icao24 && f.aircraft.icao24.toLowerCase() === icao24Lower
     );
 
     // Prefer a completed (landed) leg, most recent first.
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
         "Nessun volo trovato per questo aereo in arrivo al tuo aeroporto. Potrebbe essere gia' a terra da prima (fuori dalla finestra dati), o l'informazione non e' ancora disponibile.",
       debug: {
         depIataUpper: depIata.toUpperCase(),
-        registration: regUpper,
+        icao24: icao24Lower,
         totalFlightsAtAirport: flights.length,
         candidatesFound: candidates.length,
         fetchError,
