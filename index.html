@@ -110,6 +110,7 @@
   }
   .status-landed { background: rgba(74,222,128,0.15); color: var(--good); }
   .status-en_route { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .status-not_departed { background: rgba(96,165,250,0.15); color: #60a5fa; }
   .status-unknown, .status-no_aircraft { background: rgba(248,113,113,0.15); color: var(--bad); }
  
   .result-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; gap: 10px; }
@@ -359,29 +360,39 @@ function renderDetail(flight, data) {
   html += `<div class="result-row"><span class="label">Partenza prevista</span><span>${fmtTime(flight.departure.scheduled)}</span></div>`;
  
   if (data.status === "landed") {
+    html += `<div class="result-row"><span class="label">Stato</span><span>Aereo gia' al tuo aeroporto</span></div>`;
     html += `<div class="result-row"><span class="label">Volo precedente</span><span>${data.inboundFlight || "?"}</span></div>`;
     html += `<div class="result-row"><span class="label">Proveniva da</span><span>${data.inboundDepartureAirport || "?"}</span></div>`;
-    html += `<div class="result-row"><span class="label">Atterrato qui alle</span><span>${fmtTime(data.arrivedAt)}</span></div>`;
+    html += `<div class="result-row"><span class="label">Atterrato alle</span><span>${fmtTime(data.arrivedAt)}</span></div>`;
     if (data.arrivalDelayMinutes != null) {
-      html += `<div class="result-row"><span class="label">Ritardo all'arrivo</span><span>${data.arrivalDelayMinutes} min</span></div>`;
+      html += `<div class="result-row"><span class="label">Ritardo con cui e' atterrato</span><span>${data.arrivalDelayMinutes} min</span></div>`;
     } else {
       html += `<p class="meta" style="margin-top:8px;">Ritardo esatto non disponibile, ma l'aereo e' gia' a terra qui.</p>`;
     }
   } else if (data.status === "en_route") {
-    html += `<div class="result-row"><span class="label">Volo precedente</span><span>${data.inboundFlight || "?"}</span></div>`;
+    html += `<div class="result-row"><span class="label">Stato</span><span>In volo verso il tuo aeroporto</span></div>`;
+    html += `<div class="result-row"><span class="label">Volo</span><span>${data.inboundFlight || "?"}</span></div>`;
     html += `<div class="result-row"><span class="label">Proveniva da</span><span>${data.inboundDepartureAirport || "?"}</span></div>`;
     if (data.departureDelayMinutes != null) {
       html += `<div class="result-row"><span class="label">Ritardo alla partenza</span><span>${data.departureDelayMinutes} min</span></div>`;
     }
-    html += `<p style="margin-top:10px;">${data.message}</p>`;
     if (data.live) {
       html += `<div class="result-row"><span class="label">Quota</span><span>${data.live.altitude ? Math.round(data.live.altitude) + " m" : "?"}</span></div>`;
       html += `<div class="result-row"><span class="label">Velocita'</span><span>${data.live.speedHorizontal ? Math.round(data.live.speedHorizontal) + " km/h" : "?"}</span></div>`;
     }
+  } else if (data.status === "not_departed") {
+    html += `<div class="result-row"><span class="label">Stato</span><span>Non ancora partito</span></div>`;
+    html += `<div class="result-row"><span class="label">Volo</span><span>${data.inboundFlight || "?"}</span></div>`;
+    html += `<div class="result-row"><span class="label">Ancora a terra a</span><span>${data.inboundDepartureAirport || "?"}</span></div>`;
+    html += `<div class="result-row"><span class="label">Partenza prevista</span><span>${fmtTime(data.inboundScheduledDeparture)}</span></div>`;
+    if (data.departureDelayMinutes != null) {
+      html += `<div class="result-row"><span class="label">Ritardo attuale</span><span>${data.departureDelayMinutes} min</span></div>`;
+    }
+    html += `<p class="meta" style="margin-top:8px;">L'aereo non ha ancora lasciato l'aeroporto precedente al tuo.</p>`;
   } else {
     html += `<p style="margin-top:10px;">${data.message || "Nessuna informazione disponibile."}</p>`;
     if (data.debug) {
-      html += `<p class="meta" style="margin-top:10px;">Debug: ${data.debug.totalFlightsAtAirport} voli trovati per ${data.debug.depIataUpper}, ${data.debug.candidatesFound} corrispondono a icao24 ${data.debug.icao24}${data.debug.fetchError ? " (errore: " + data.debug.fetchError + ")" : ""}</p>`;
+      html += `<p class="meta" style="margin-top:10px;">Debug: ${data.debug.landedFlightsChecked} atterrati, ${data.debug.activeFlightsChecked} in volo, ${data.debug.scheduledFlightsChecked} non partiti, controllati per ${data.debug.depIataUpper}, cercando icao24 ${data.debug.icao24}${data.debug.fetchError ? " (errore: " + data.debug.fetchError + ")" : ""}</p>`;
     }
   }
  
@@ -389,7 +400,7 @@ function renderDetail(flight, data) {
 }
  
 function statusLabel(status) {
-  return { landed: "Aereo gia' qui", en_route: "In volo verso di noi", unknown: "Sconosciuto", no_aircraft: "Aereo non assegnato" }[status] || status;
+  return { landed: "Aereo gia' qui", en_route: "In volo verso di noi", not_departed: "Non ancora partito", unknown: "Sconosciuto", no_aircraft: "Aereo non assegnato" }[status] || status;
 }
 </script>
 </body>
