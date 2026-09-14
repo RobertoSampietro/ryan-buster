@@ -23,6 +23,19 @@ export default async function handler(req, res) {
 
     const icao24Lower = icao24.toLowerCase();
     const depIataUpper = depIata.toUpperCase();
+    const nowTs = flightDeparture ? new Date(flightDeparture).getTime() : Date.now();
+
+    // Free-tier queries aren't date-bound, so results can include flights
+    // from other days entirely. Since the same aircraft (icao24) flies many
+    // routes over time, an old unrelated landing can otherwise look like a
+    // false match. Discard anything too far in time from our own flight.
+    function withinWindow(f, hours = 30) {
+      const t = f.arrival.actual || f.arrival.scheduled || f.departure.scheduled;
+      if (!t) return false;
+      const ts = new Date(t).getTime();
+      if (isNaN(ts)) return false;
+      return Math.abs(nowTs - ts) <= hours * 3600 * 1000;
+    }
 
     // Three targeted queries instead of one broad one: the free plan caps
     // results at 100 per request, and an unfiltered query mixes in flights
@@ -43,9 +56,11 @@ export default async function handler(req, res) {
     ]);
 
     const findByIcao24 = (flights) =>
-      flights.filter(
-        (f) => f.aircraft.icao24 && f.aircraft.icao24.toLowerCase() === icao24Lower
-      );
+      flights
+        .filter(
+          (f) => f.aircraft.icao24 && f.aircraft.icao24.toLowerCase() === icao24Lower
+        )
+        .filter(withinWindow);
 
     // Case 1: aircraft already landed at our departure airport.
     const landedCandidates = findByIcao24(landedR.flights).sort((a, b) =>
