@@ -2,120 +2,187 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Ritardo Reale - Flight Delay Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Ryan Buster - Flight Delay Tracker</title>
 <style>
   :root {
-    --bg: #0d1117;
-    --panel: #161b22;
-    --border: #30363d;
-    --text: #e6edf3;
-    --muted: #8b949e;
-    --accent: #58a6ff;
-    --good: #3fb950;
-    --warn: #d29922;
-    --bad: #f85149;
+    --bg: #0a1a4d;
+    --bg2: #0d2263;
+    --panel: #112a75;
+    --border: #1e3a8f;
+    --text: #f2f4fb;
+    --muted: #a6b3e0;
+    --accent: #ffd24d;
+    --accent-dark: #b89020;
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
-    background: var(--bg);
+    background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     margin: 0;
-    padding: 24px 16px 60px;
+    padding: 20px 14px 60px;
+    min-height: 100vh;
   }
   .wrap { max-width: 640px; margin: 0 auto; }
-  h1 { font-size: 1.4rem; margin-bottom: 4px; }
-  p.sub { color: var(--muted); margin-top: 0; font-size: 0.9rem; }
-
-  .tabs { display: flex; gap: 8px; margin: 20px 0 16px; }
+ 
+  .header { text-align: center; margin-bottom: 8px; }
+  h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent-dark);
+    text-shadow: 0 1px 0 rgba(0,0,0,0.3);
+    margin: 4px 0 2px;
+    letter-spacing: 0.5px;
+  }
+  p.sub { color: var(--muted); margin: 0 0 14px; font-size: 0.9rem; }
+ 
+  .mascot { display: block; max-width: 160px; width: 45%; margin: 0 auto 6px; }
+ 
+  .tabs { display: flex; gap: 8px; margin: 16px 0 14px; }
   .tab {
-    flex: 1; padding: 10px; text-align: center; border-radius: 8px;
+    flex: 1; padding: 12px 8px; text-align: center; border-radius: 10px;
     background: var(--panel); border: 1px solid var(--border);
     cursor: pointer; color: var(--muted); font-size: 0.9rem;
+    min-height: 44px; display: flex; align-items: center; justify-content: center;
   }
-  .tab.active { color: var(--text); border-color: var(--accent); }
-
+  .tab.active { color: var(--accent); border-color: var(--accent); background: rgba(255,210,77,0.08); }
+ 
   .panel {
     background: var(--panel); border: 1px solid var(--border);
-    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+    border-radius: 12px; padding: 16px; margin-bottom: 14px;
   }
   input {
-    width: 100%; padding: 10px; border-radius: 6px;
-    border: 1px solid var(--border); background: #0d1117; color: var(--text);
-    font-size: 1rem; margin-bottom: 10px;
+    width: 100%; padding: 13px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: #081a4a; color: var(--text);
+    font-size: 16px; margin-bottom: 10px;
   }
+  input::placeholder { color: var(--muted); }
   .row { display: flex; gap: 10px; }
   .row input { flex: 1; }
   button {
-    width: 100%; padding: 11px; border-radius: 6px; border: none;
-    background: var(--accent); color: #0d1117; font-weight: 600;
-    font-size: 0.95rem; cursor: pointer;
+    width: 100%; padding: 13px; border-radius: 8px; border: none;
+    background: var(--accent); color: #0a1a4d; font-weight: 700;
+    font-size: 1rem; cursor: pointer; min-height: 46px;
   }
+  button:active { opacity: 0.85; }
   button:disabled { opacity: 0.5; cursor: default; }
-
+ 
+  .disclaimer {
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;
+  }
+  .disclaimer p { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+  .disclaimer p:last-child { margin-bottom: 0; }
+ 
+  .autocomplete-wrap { position: relative; }
+  .suggestions {
+    position: absolute; left: 0; right: 0; top: calc(100% - 6px);
+    background: #081a4a; border: 1px solid var(--border); border-radius: 8px;
+    max-height: 220px; overflow-y: auto; z-index: 20; display: none;
+  }
+  .suggestions.open { display: block; }
+  .suggestion-item {
+    padding: 12px; cursor: pointer; font-size: 0.9rem; border-bottom: 1px solid var(--border);
+    min-height: 44px; display: flex; flex-direction: column; justify-content: center;
+  }
+  .suggestion-item:last-child { border-bottom: none; }
+  .suggestion-item:active, .suggestion-item.highlight { background: rgba(255,210,77,0.12); }
+  .suggestion-item .s-city { font-weight: 600; }
+  .suggestion-item .s-meta { color: var(--muted); font-size: 0.78rem; }
+ 
   .flight-card {
-    border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+    border: 1px solid var(--border); border-radius: 10px; padding: 14px;
     margin-top: 10px; cursor: pointer; transition: border-color 0.15s;
+    min-height: 44px;
   }
-  .flight-card:hover { border-color: var(--accent); }
-  .flight-card .top { display: flex; justify-content: space-between; font-weight: 600; }
+  .flight-card:active { border-color: var(--accent); }
+  .flight-card .top { display: flex; justify-content: space-between; font-weight: 700; font-size: 1.05rem; }
   .flight-card .meta { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
-
+ 
   .status-badge {
-    display: inline-block; padding: 3px 8px; border-radius: 20px;
-    font-size: 0.75rem; font-weight: 600; margin-bottom: 10px;
+    display: inline-block; padding: 4px 10px; border-radius: 20px;
+    font-size: 0.75rem; font-weight: 700; margin-bottom: 10px;
   }
-  .status-landed { background: rgba(63,185,80,0.15); color: var(--good); }
-  .status-en_route { background: rgba(210,153,34,0.15); color: var(--warn); }
-  .status-unknown, .status-no_aircraft { background: rgba(248,81,73,0.15); color: var(--bad); }
-
-  .result-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+  .status-landed { background: rgba(74,222,128,0.15); color: var(--good); }
+  .status-en_route { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .status-unknown, .status-no_aircraft { background: rgba(248,113,113,0.15); color: var(--bad); }
+ 
+  .result-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; gap: 10px; }
   .result-row:last-child { border-bottom: none; }
   .result-row .label { color: var(--muted); }
-
+ 
   .loading { color: var(--muted); font-size: 0.9rem; }
   .error { color: var(--bad); font-size: 0.9rem; }
-  .back-link { color: var(--accent); font-size: 0.85rem; cursor: pointer; margin-bottom: 12px; display: inline-block; }
+  .back-link {
+    color: var(--accent); font-size: 0.9rem; cursor: pointer; margin-bottom: 12px;
+    display: inline-flex; align-items: center; min-height: 44px;
+  }
+ 
+  @media (max-width: 380px) {
+    h1 { font-size: 1.6rem; }
+    .mascot { max-width: 120px; }
+    body { padding: 14px 10px 50px; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Ritardo Reale</h1>
-  <p class="sub">Scopri il ritardo accumulato dall'aereo prima del tuo volo.</p>
-
+  <div class="header">
+    <img src="mascot.png" alt="Ryan Buster" class="mascot" />
+    <h1>Ryan Buster</h1>
+    <p class="sub">Scopri il ritardo accumulato dall'aereo prima del tuo volo.</p>
+  </div>
+ 
   <div id="searchView">
     <div class="tabs">
       <div class="tab active" data-tab="number">Numero volo</div>
       <div class="tab" data-tab="route">Tratta + data</div>
     </div>
-
+ 
     <div class="panel" id="panelNumber">
-      <input id="flightNumberInput" placeholder="Es. AZ204" autocapitalize="characters" />
+      <input id="flightNumberInput" placeholder="Es. FR4632" autocapitalize="characters" />
       <button id="btnSearchNumber">Cerca</button>
     </div>
-
+ 
     <div class="panel" id="panelRoute" style="display:none;">
       <div class="row">
-        <input id="depInput" placeholder="Partenza IATA (es. VLC)" autocapitalize="characters" />
-        <input id="arrInput" placeholder="Arrivo IATA (es. FCO)" autocapitalize="characters" />
+        <div class="autocomplete-wrap">
+          <input id="depInput" placeholder="Citta' di partenza" autocomplete="off" />
+          <div class="suggestions" id="depSuggestions"></div>
+        </div>
+        <div class="autocomplete-wrap">
+          <input id="arrInput" placeholder="Citta' di arrivo" autocomplete="off" />
+          <div class="suggestions" id="arrSuggestions"></div>
+        </div>
       </div>
       <button id="btnSearchRoute">Cerca</button>
     </div>
-
+ 
+    <div class="disclaimer">
+      <p>Il sistema non puo' stimare eventuali ritardi aggiuntivi maturati all'aeroporto di partenza, ne' un eventuale cambio di aeromobile deciso dalla compagnia.</p>
+      <p>Questa e' solo una stima indicativa. Per informazioni ufficiali su voli, gate e orari, fai sempre riferimento alle fonti aeroportuali dirette (tabelloni, sito della compagnia, ecc.).</p>
+    </div>
+ 
     <div id="searchStatus"></div>
     <div id="results"></div>
   </div>
-
+ 
   <div id="detailView" style="display:none;">
     <span class="back-link" id="backLink">&larr; Torna alla ricerca</span>
     <div class="panel" id="detailPanel"></div>
   </div>
 </div>
-
+ 
 <script>
 const $ = (id) => document.getElementById(id);
-
+ 
+const AIRPORTS = [{"iata":"FCO","city":"Roma","aliases":["rome","roma fiumicino"],"country":"Italia"},{"iata":"CIA","city":"Roma Ciampino","aliases":["rome ciampino"],"country":"Italia"},{"iata":"MXP","city":"Milano Malpensa","aliases":["milan malpensa","milano"],"country":"Italia"},{"iata":"LIN","city":"Milano Linate","aliases":["milan linate"],"country":"Italia"},{"iata":"BGY","city":"Bergamo","aliases":["bergamo orio al serio"],"country":"Italia"},{"iata":"VCE","city":"Venezia","aliases":["venice"],"country":"Italia"},{"iata":"NAP","city":"Napoli","aliases":["naples"],"country":"Italia"},{"iata":"BLQ","city":"Bologna","aliases":[],"country":"Italia"},{"iata":"FLR","city":"Firenze","aliases":["florence"],"country":"Italia"},{"iata":"PSA","city":"Pisa","aliases":[],"country":"Italia"},{"iata":"TRN","city":"Torino","aliases":["turin"],"country":"Italia"},{"iata":"CTA","city":"Catania","aliases":[],"country":"Italia"},{"iata":"PMO","city":"Palermo","aliases":[],"country":"Italia"},{"iata":"BRI","city":"Bari","aliases":[],"country":"Italia"},{"iata":"CAG","city":"Cagliari","aliases":[],"country":"Italia"},{"iata":"VLC","city":"Valencia","aliases":["valencia"],"country":"Spagna"},{"iata":"MAD","city":"Madrid","aliases":[],"country":"Spagna"},{"iata":"BCN","city":"Barcellona","aliases":["barcelona"],"country":"Spagna"},{"iata":"AGP","city":"Malaga","aliases":["malaga"],"country":"Spagna"},{"iata":"SVQ","city":"Siviglia","aliases":["seville","sevilla"],"country":"Spagna"},{"iata":"PMI","city":"Palma di Maiorca","aliases":["palma","mallorca"],"country":"Spagna"},{"iata":"ALC","city":"Alicante","aliases":[],"country":"Spagna"},{"iata":"BIO","city":"Bilbao","aliases":[],"country":"Spagna"},{"iata":"LPA","city":"Las Palmas","aliases":["gran canaria"],"country":"Spagna"},{"iata":"TFS","city":"Tenerife Sud","aliases":["tenerife south"],"country":"Spagna"},{"iata":"IBZ","city":"Ibiza","aliases":[],"country":"Spagna"},{"iata":"AMS","city":"Amsterdam","aliases":[],"country":"Paesi Bassi"},{"iata":"RTM","city":"Rotterdam","aliases":[],"country":"Paesi Bassi"},{"iata":"EIN","city":"Eindhoven","aliases":[],"country":"Paesi Bassi"},{"iata":"CDG","city":"Parigi Charles de Gaulle","aliases":["paris","parigi"],"country":"Francia"},{"iata":"ORY","city":"Parigi Orly","aliases":["paris orly"],"country":"Francia"},{"iata":"NCE","city":"Nizza","aliases":["nice"],"country":"Francia"},{"iata":"LYS","city":"Lione","aliases":["lyon"],"country":"Francia"},{"iata":"MRS","city":"Marsiglia","aliases":["marseille"],"country":"Francia"},{"iata":"TLS","city":"Tolosa","aliases":["toulouse"],"country":"Francia"},{"iata":"BOD","city":"Bordeaux","aliases":[],"country":"Francia"},{"iata":"LHR","city":"Londra Heathrow","aliases":["london","londra"],"country":"Regno Unito"},{"iata":"LGW","city":"Londra Gatwick","aliases":["london gatwick"],"country":"Regno Unito"},{"iata":"STN","city":"Londra Stansted","aliases":["london stansted"],"country":"Regno Unito"},{"iata":"LTN","city":"Londra Luton","aliases":["london luton"],"country":"Regno Unito"},{"iata":"MAN","city":"Manchester","aliases":[],"country":"Regno Unito"},{"iata":"EDI","city":"Edimburgo","aliases":["edinburgh"],"country":"Regno Unito"},{"iata":"BHX","city":"Birmingham","aliases":[],"country":"Regno Unito"},{"iata":"DUB","city":"Dublino","aliases":["dublin"],"country":"Irlanda"},{"iata":"FRA","city":"Francoforte","aliases":["frankfurt"],"country":"Germania"},{"iata":"MUC","city":"Monaco di Baviera","aliases":["munich","munchen"],"country":"Germania"},{"iata":"BER","city":"Berlino","aliases":["berlin"],"country":"Germania"},{"iata":"HAM","city":"Amburgo","aliases":["hamburg"],"country":"Germania"},{"iata":"DUS","city":"Dusseldorf","aliases":["duesseldorf"],"country":"Germania"},{"iata":"CGN","city":"Colonia","aliases":["cologne","koln"],"country":"Germania"},{"iata":"STR","city":"Stoccarda","aliases":["stuttgart"],"country":"Germania"},{"iata":"VIE","city":"Vienna","aliases":["wien"],"country":"Austria"},{"iata":"ZRH","city":"Zurigo","aliases":["zurich"],"country":"Svizzera"},{"iata":"GVA","city":"Ginevra","aliases":["geneva","geneve"],"country":"Svizzera"},{"iata":"BSL","city":"Basilea","aliases":["basel"],"country":"Svizzera"},{"iata":"BRU","city":"Bruxelles","aliases":["brussels"],"country":"Belgio"},{"iata":"CRL","city":"Bruxelles Charleroi","aliases":["brussels charleroi"],"country":"Belgio"},{"iata":"LIS","city":"Lisbona","aliases":["lisbon","lisboa"],"country":"Portogallo"},{"iata":"OPO","city":"Porto","aliases":[],"country":"Portogallo"},{"iata":"FAO","city":"Faro","aliases":[],"country":"Portogallo"},{"iata":"ATH","city":"Atene","aliases":["athens"],"country":"Grecia"},{"iata":"SKG","city":"Salonicco","aliases":["thessaloniki"],"country":"Grecia"},{"iata":"HER","city":"Heraklion","aliases":["creta","crete"],"country":"Grecia"},{"iata":"CPH","city":"Copenaghen","aliases":["copenhagen"],"country":"Danimarca"},{"iata":"OSL","city":"Oslo","aliases":[],"country":"Norvegia"},{"iata":"ARN","city":"Stoccolma","aliases":["stockholm"],"country":"Svezia"},{"iata":"HEL","city":"Helsinki","aliases":[],"country":"Finlandia"},{"iata":"WAW","city":"Varsavia","aliases":["warsaw"],"country":"Polonia"},{"iata":"KRK","city":"Cracovia","aliases":["krakow","cracow"],"country":"Polonia"},{"iata":"PRG","city":"Praga","aliases":["prague"],"country":"Repubblica Ceca"},{"iata":"BUD","city":"Budapest","aliases":[],"country":"Ungheria"},{"iata":"OTP","city":"Bucarest","aliases":["bucharest"],"country":"Romania"},{"iata":"SOF","city":"Sofia","aliases":[],"country":"Bulgaria"},{"iata":"IST","city":"Istanbul","aliases":[],"country":"Turchia"},{"iata":"SAW","city":"Istanbul Sabiha","aliases":["istanbul sabiha gokcen"],"country":"Turchia"},{"iata":"MOW","city":"Mosca","aliases":["moscow"],"country":"Russia"},{"iata":"JFK","city":"New York JFK","aliases":["new york","newyork"],"country":"USA"},{"iata":"EWR","city":"New York Newark","aliases":["newark"],"country":"USA"},{"iata":"LGA","city":"New York LaGuardia","aliases":["laguardia"],"country":"USA"},{"iata":"LAX","city":"Los Angeles","aliases":[],"country":"USA"},{"iata":"ORD","city":"Chicago","aliases":[],"country":"USA"},{"iata":"MIA","city":"Miami","aliases":[],"country":"USA"},{"iata":"SFO","city":"San Francisco","aliases":[],"country":"USA"},{"iata":"BOS","city":"Boston","aliases":[],"country":"USA"},{"iata":"ATL","city":"Atlanta","aliases":[],"country":"USA"},{"iata":"DFW","city":"Dallas","aliases":[],"country":"USA"},{"iata":"SEA","city":"Seattle","aliases":[],"country":"USA"},{"iata":"LAS","city":"Las Vegas","aliases":[],"country":"USA"},{"iata":"YYZ","city":"Toronto","aliases":[],"country":"Canada"},{"iata":"YUL","city":"Montreal","aliases":[],"country":"Canada"},{"iata":"YVR","city":"Vancouver","aliases":[],"country":"Canada"},{"iata":"MEX","city":"Citta del Messico","aliases":["mexico city","ciudad de mexico"],"country":"Messico"},{"iata":"GRU","city":"San Paolo","aliases":["sao paulo"],"country":"Brasile"},{"iata":"GIG","city":"Rio de Janeiro","aliases":["rio"],"country":"Brasile"},{"iata":"EZE","city":"Buenos Aires","aliases":[],"country":"Argentina"},{"iata":"SCL","city":"Santiago del Cile","aliases":["santiago"],"country":"Cile"},{"iata":"BOG","city":"Bogota","aliases":[],"country":"Colombia"},{"iata":"LIM","city":"Lima","aliases":[],"country":"Peru"},{"iata":"DXB","city":"Dubai","aliases":[],"country":"Emirati Arabi Uniti"},{"iata":"AUH","city":"Abu Dhabi","aliases":[],"country":"Emirati Arabi Uniti"},{"iata":"DOH","city":"Doha","aliases":[],"country":"Qatar"},{"iata":"RUH","city":"Riyadh","aliases":["riad"],"country":"Arabia Saudita"},{"iata":"JED","city":"Jedda","aliases":["jeddah"],"country":"Arabia Saudita"},{"iata":"CAI","city":"Il Cairo","aliases":["cairo"],"country":"Egitto"},{"iata":"TLV","city":"Tel Aviv","aliases":[],"country":"Israele"},{"iata":"AMM","city":"Amman","aliases":[],"country":"Giordania"},{"iata":"NBO","city":"Nairobi","aliases":[],"country":"Kenya"},{"iata":"JNB","city":"Johannesburg","aliases":[],"country":"Sudafrica"},{"iata":"CPT","city":"Citta del Capo","aliases":["cape town"],"country":"Sudafrica"},{"iata":"CAS","city":"Casablanca","aliases":[],"country":"Marocco"},{"iata":"TUN","city":"Tunisi","aliases":["tunis"],"country":"Tunisia"},{"iata":"ALG","city":"Algeri","aliases":["algiers"],"country":"Algeria"},{"iata":"DEL","city":"Delhi","aliases":["new delhi"],"country":"India"},{"iata":"BOM","city":"Mumbai","aliases":["bombay"],"country":"India"},{"iata":"BLR","city":"Bangalore","aliases":[],"country":"India"},{"iata":"SIN","city":"Singapore","aliases":[],"country":"Singapore"},{"iata":"BKK","city":"Bangkok","aliases":[],"country":"Thailandia"},{"iata":"KUL","city":"Kuala Lumpur","aliases":[],"country":"Malesia"},{"iata":"HKG","city":"Hong Kong","aliases":[],"country":"Hong Kong"},{"iata":"PEK","city":"Pechino","aliases":["beijing"],"country":"Cina"},{"iata":"PVG","city":"Shanghai","aliases":[],"country":"Cina"},{"iata":"CAN","city":"Guangzhou","aliases":["canton"],"country":"Cina"},{"iata":"NRT","city":"Tokyo Narita","aliases":["tokyo"],"country":"Giappone"},{"iata":"HND","city":"Tokyo Haneda","aliases":["tokyo haneda"],"country":"Giappone"},{"iata":"ICN","city":"Seoul","aliases":["seul"],"country":"Corea del Sud"},{"iata":"TPE","city":"Taipei","aliases":[],"country":"Taiwan"},{"iata":"MNL","city":"Manila","aliases":[],"country":"Filippine"},{"iata":"CGK","city":"Jakarta","aliases":[],"country":"Indonesia"},{"iata":"SYD","city":"Sydney","aliases":[],"country":"Australia"},{"iata":"MEL","city":"Melbourne","aliases":[],"country":"Australia"},{"iata":"BNE","city":"Brisbane","aliases":[],"country":"Australia"},{"iata":"AKL","city":"Auckland","aliases":[],"country":"Nuova Zelanda"}];
+ 
 document.querySelectorAll(".tab").forEach((t) => {
   t.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
@@ -125,25 +192,81 @@ document.querySelectorAll(".tab").forEach((t) => {
     $("panelRoute").style.display = isNumber ? "none" : "block";
   });
 });
-
+ 
 $("btnSearchNumber").addEventListener("click", () => {
   const v = $("flightNumberInput").value.trim();
   if (!v) return;
   runSearch({ flight: v });
 });
-
+ 
 $("btnSearchRoute").addEventListener("click", () => {
-  const dep = $("depInput").value.trim();
-  const arr = $("arrInput").value.trim();
-  if (!dep || !arr) return;
-  runSearch({ dep, arr });
+  const depIata = $("depInput").dataset.iata;
+  const arrIata = $("arrInput").dataset.iata;
+  if (!depIata || !arrIata) {
+    $("searchStatus").innerHTML = '<p class="error">Seleziona un aeroporto dalla lista per partenza e arrivo.</p>';
+    return;
+  }
+  runSearch({ dep: depIata, arr: arrIata });
 });
-
+ 
+// --- City autocomplete ---
+function setupAutocomplete(inputId, suggestionsId) {
+  const input = $(inputId);
+  const box = $(suggestionsId);
+ 
+  input.addEventListener("input", () => {
+    delete input.dataset.iata;
+    const q = input.value.trim().toLowerCase();
+    if (q.length < 2) {
+      box.classList.remove("open");
+      box.innerHTML = "";
+      return;
+    }
+    const matches = AIRPORTS.filter((a) => {
+      if (a.city.toLowerCase().includes(q)) return true;
+      if (a.iata.toLowerCase() === q) return true;
+      return a.aliases.some((al) => al.toLowerCase().includes(q));
+    }).slice(0, 8);
+ 
+    if (!matches.length) {
+      box.classList.remove("open");
+      box.innerHTML = "";
+      return;
+    }
+ 
+    box.innerHTML = matches
+      .map(
+        (a, i) =>
+          `<div class="suggestion-item" data-idx="${i}">
+            <span class="s-city">${a.city}</span>
+            <span class="s-meta">${a.country} &middot; ${a.iata}</span>
+          </div>`
+      )
+      .join("");
+    box.classList.add("open");
+ 
+    box.querySelectorAll(".suggestion-item").forEach((el, i) => {
+      el.addEventListener("click", () => {
+        input.value = matches[i].city;
+        input.dataset.iata = matches[i].iata;
+        box.classList.remove("open");
+        box.innerHTML = "";
+      });
+    });
+  });
+ 
+  input.addEventListener("blur", () => {
+    setTimeout(() => box.classList.remove("open"), 150);
+  });
+}
+setupAutocomplete("depInput", "depSuggestions");
+setupAutocomplete("arrInput", "arrSuggestions");
+ 
 $("backLink").addEventListener("click", () => {
   $("detailView").style.display = "none";
   $("searchView").style.display = "block";
 });
-
+ 
 async function runSearch(params) {
   $("results").innerHTML = "";
   $("searchStatus").innerHTML = '<p class="loading">Ricerca in corso...</p>';
@@ -161,16 +284,14 @@ async function runSearch(params) {
     $("searchStatus").innerHTML = `<p class="error">Errore: ${e.message}</p>`;
   }
 }
-
+ 
 function renderResults(flights) {
-  // Only show flights departing today (matching the airport-local date
-  // in the string, no timezone conversion needed).
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayFlights = flights.filter((f) => {
     const dep = f.departure.scheduled;
     return dep && dep.slice(0, 10) === todayStr;
   });
-
+ 
   if (!todayFlights.length) {
     $("results").innerHTML = '<p class="loading">Nessun volo trovato per oggi.</p>';
     return;
@@ -181,21 +302,16 @@ function renderResults(flights) {
     <div class="flight-card" data-idx="${i}">
       <div class="top"><span>${f.flightIata || f.flightIcao || "?"}</span><span>${f.status || ""}</span></div>
       <div class="meta">${f.departure.airportIata || "?"} &rarr; ${f.arrival.airportIata || "?"} &middot; partenza prevista ${fmtTime(f.departure.scheduled)}</div>
-      <div class="meta">${f.aircraft.icao24 ? "Aereo assegnato (icao24: " + f.aircraft.icao24 + ")" : "Aereo non ancora assegnato"}</div>
+      <div class="meta">${f.aircraft.icao24 ? "Aereo assegnato" : "Aereo non ancora assegnato"}</div>
     </div>`
     )
     .join("");
-
+ 
   document.querySelectorAll(".flight-card").forEach((card) => {
     card.addEventListener("click", () => showDetail(todayFlights[card.dataset.idx]));
   });
 }
-
-// AviationStack returns times in the LOCAL time of the airport, but always
-// tags them with a "+00:00" suffix regardless of the real offset. Parsing
-// that with `new Date()` makes the browser re-convert it to your own
-// timezone, shifting the hour. We only ever want the wall-clock numbers as
-// given, so we read them straight out of the string instead of via Date.
+ 
 function fmtTime(iso) {
   if (!iso) return "?";
   const m = iso.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
@@ -203,25 +319,25 @@ function fmtTime(iso) {
   const [, , mo, d, h, mi] = m;
   return `${d}/${mo} ${h}:${mi}`;
 }
-
+ 
 async function showDetail(flight) {
   $("searchView").style.display = "none";
   $("detailView").style.display = "block";
   $("detailPanel").innerHTML = '<p class="loading">Controllo la tratta precedente...</p>';
-
+ 
   if (!flight.aircraft.icao24) {
     $("detailPanel").innerHTML = `
       <span class="status-badge status-no_aircraft">Aereo non assegnato</span>
       <p>Questo volo non ha ancora un aereo assegnato. Riprova qualche ora prima della partenza.</p>`;
     return;
   }
-
+ 
   const params = new URLSearchParams({
     icao24: flight.aircraft.icao24,
     depIata: flight.departure.airportIata || "",
     flightDeparture: flight.departure.scheduled || "",
   });
-
+ 
   try {
     const res = await fetch(`/api/delay?${params.toString()}`);
     const data = await res.json();
@@ -230,18 +346,18 @@ async function showDetail(flight) {
     $("detailPanel").innerHTML = `<p class="error">Errore: ${e.message}</p>`;
   }
 }
-
+ 
 function renderDetail(flight, data) {
   if (data.error) {
     $("detailPanel").innerHTML = `<p class="error">Errore: ${data.error}</p>`;
     return;
   }
-
+ 
   let html = `<span class="status-badge status-${data.status}">${statusLabel(data.status)}</span>`;
   html += `<div class="result-row"><span class="label">Volo</span><span>${flight.flightIata || "?"}</span></div>`;
   html += `<div class="result-row"><span class="label">Tratta</span><span>${flight.departure.airportIata} &rarr; ${flight.arrival.airportIata}</span></div>`;
   html += `<div class="result-row"><span class="label">Partenza prevista</span><span>${fmtTime(flight.departure.scheduled)}</span></div>`;
-
+ 
   if (data.status === "landed") {
     html += `<div class="result-row"><span class="label">Volo precedente</span><span>${data.inboundFlight || "?"}</span></div>`;
     html += `<div class="result-row"><span class="label">Proveniva da</span><span>${data.inboundDepartureAirport || "?"}</span></div>`;
@@ -268,13 +384,14 @@ function renderDetail(flight, data) {
       html += `<p class="meta" style="margin-top:10px;">Debug: ${data.debug.totalFlightsAtAirport} voli trovati per ${data.debug.depIataUpper}, ${data.debug.candidatesFound} corrispondono a icao24 ${data.debug.icao24}${data.debug.fetchError ? " (errore: " + data.debug.fetchError + ")" : ""}</p>`;
     }
   }
-
+ 
   $("detailPanel").innerHTML = html;
 }
-
+ 
 function statusLabel(status) {
   return { landed: "Aereo gia' qui", en_route: "In volo verso di noi", unknown: "Sconosciuto", no_aircraft: "Aereo non assegnato" }[status] || status;
 }
 </script>
 </body>
 </html>
+ 
