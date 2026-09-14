@@ -21,31 +21,40 @@ export default async function handler(req, res) {
       return;
     }
 
-    let raw = [];
-    let fetchError = null;
-    try {
-      raw = await searchByArrivalAirport(depIata.toUpperCase());
-    } catch (e) {
-      fetchError = e.message;
+    const icao24Lower = icao24.toLowerCase();
+    const depIataUpper = depIata.toUpperCase();
+
+    // Three targeted queries instead of one broad one: the free plan caps
+    // results at 100 per request, and an unfiltered query mixes in flights
+    // of every status, easily pushing our aircraft's actual leg past the cap.
+    async function safeQuery(status) {
+      try {
+        const raw = await searchByArrivalAirport(depIataUpper, status);
+        return { flights: raw.map(normalizeFlight), error: null };
+      } catch (e) {
+        return { flights: [], error: e.message };
+      }
     }
 
-    const flights = raw.map(normalizeFlight);
-    const icao24Lower = icao24.toLowerCase();
-    const candidates = flights.filter(
-      (f) => f.aircraft.icao24 && f.aircraft.icao24.toLowerCase() === icao24Lower
-    );
+    const [landedR, activeR, scheduledR] = await Promise.all([
+      safeQuery("landed"),
+      safeQuery("active"),
+      safeQuery("scheduled"),
+    ]);
 
-    // Prefer a completed (landed) leg, most recent first.
-    const landed = candidates
-      .filter((f) => f.status === "landed" || f.arrival.actual)
-      .sort((a, b) =>
-        (b.arrival.actual || b.arrival.scheduled || "").localeCompare(
-          a.arrival.actual || a.arrival.scheduled || ""
-        )
+    const findByIcao24 = (flights) =>
+      flights.filter(
+        (f) => f.aircraft.icao24 && f.aircraft.icao24.toLowerCase() === icao24Lower
       );
 
-    if (landed.length) {
-      const inbound = landed[0];
+    // Case 1: aircraft already landed at our departure airport.
+    const landedCandidates = findByIcao24(landedR.flights).sort((a, b) =>
+      (b.arrival.actual || b.arrival.scheduled || "").localeCompare(
+        a.arrival.actual || a.arrival.scheduled || ""
+      )
+    );
+    if (landedCandidates.length) {
+      const inbound = landedCandidates[0];
       res.status(200).json({
         status: "landed",
         inboundFlight: inbound.flightIata || inbound.flightIcao,
@@ -56,18 +65,28 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Otherwise, is our aircraft currently en route (active) toward us?
-    const active = candidates.find(
-      (f) => f.status === "active" || f.status === "en-route"
-    );
-    if (active) {
+    // Case 2: aircraft currently airborne, en route to our airport.
+    const activeCandidate = findByIcao24(activeR.flights)[0];
+    if (activeCandidate) {
       res.status(200).json({
         status: "en_route",
-        inboundFlight: active.flightIata || active.flightIcao,
-        inboundDepartureAirport: active.departure.airportIata,
-        departureDelayMinutes: active.departure.delayMinutes,
-        live: active.live,
-        message: "Aereo ancora in volo verso il tuo aeroporto di partenza.",
+        inboundFlight: activeCandidate.flightIata || activeCandidate.flightIcao,
+        inboundDepartureAirport: activeCandidate.departure.airportIata,
+        departureDelayMinutes: activeCandidate.departure.delayMinutes,
+        live: activeCandidate.live,
+      });
+      return;
+    }
+
+    // Case 3: aircraft hasn't left its previous airport yet.
+    const scheduledCandidate = findByIcao24(scheduledR.flights)[0];
+    if (scheduledCandidate) {
+      res.status(200).json({
+        status: "not_departed",
+        inboundFlight: scheduledCandidate.flightIata || scheduledCandidate.flightIcao,
+        inboundDepartureAirport: scheduledCandidate.departure.airportIata,
+        inboundScheduledDeparture: scheduledCandidate.departure.scheduled,
+        departureDelayMinutes: scheduledCandidate.departure.delayMinutes,
       });
       return;
     }
@@ -75,13 +94,14 @@ export default async function handler(req, res) {
     res.status(200).json({
       status: "unknown",
       message:
-        "Nessun volo trovato per questo aereo in arrivo al tuo aeroporto. Potrebbe essere gia' a terra da prima (fuori dalla finestra dati), o l'informazione non e' ancora disponibile.",
+        "Nessun volo trovato per questo aereo in arrivo al tuo aeroporto. L'informazione potrebbe non essere ancora disponibile.",
       debug: {
-        depIataUpper: depIata.toUpperCase(),
+        depIataUpper,
         icao24: icao24Lower,
-        totalFlightsAtAirport: flights.length,
-        candidatesFound: candidates.length,
-        fetchError,
+        landedFlightsChecked: landedR.flights.length,
+        activeFlightsChecked: activeR.flights.length,
+        scheduledFlightsChecked: scheduledR.flights.length,
+        fetchError: landedR.error || activeR.error || scheduledR.error,
       },
     });
   } catch (err) {
