@@ -181,7 +181,7 @@ function renderResults(flights) {
     <div class="flight-card" data-idx="${i}">
       <div class="top"><span>${f.flightIata || f.flightIcao || "?"}</span><span>${f.status || ""}</span></div>
       <div class="meta">${f.departure.airportIata || "?"} &rarr; ${f.arrival.airportIata || "?"} &middot; partenza prevista ${fmtTime(f.departure.scheduled)}</div>
-      <div class="meta">${f.aircraft.registration ? "Aereo: " + f.aircraft.registration : "Aereo non ancora assegnato"}</div>
+      <div class="meta">${f.aircraft.icao24 ? "Aereo assegnato (icao24: " + f.aircraft.icao24 + ")" : "Aereo non ancora assegnato"}</div>
     </div>`
     )
     .join("");
@@ -209,7 +209,7 @@ async function showDetail(flight) {
   $("detailView").style.display = "block";
   $("detailPanel").innerHTML = '<p class="loading">Controllo la tratta precedente...</p>';
 
-  if (!flight.aircraft.registration) {
+  if (!flight.aircraft.icao24) {
     $("detailPanel").innerHTML = `
       <span class="status-badge status-no_aircraft">Aereo non assegnato</span>
       <p>Questo volo non ha ancora un aereo assegnato. Riprova qualche ora prima della partenza.</p>`;
@@ -217,7 +217,7 @@ async function showDetail(flight) {
   }
 
   const params = new URLSearchParams({
-    registration: flight.aircraft.registration,
+    icao24: flight.aircraft.icao24,
     depIata: flight.departure.airportIata || "",
     flightDeparture: flight.departure.scheduled || "",
   });
@@ -265,7 +265,7 @@ function renderDetail(flight, data) {
   } else {
     html += `<p style="margin-top:10px;">${data.message || "Nessuna informazione disponibile."}</p>`;
     if (data.debug) {
-      html += `<p class="meta" style="margin-top:10px;">Debug: ${data.debug.totalFlightsAtAirport} voli trovati per ${data.debug.depIataUpper}, ${data.debug.candidatesFound} corrispondono alla registrazione ${data.debug.registration}${data.debug.fetchError ? " (errore: " + data.debug.fetchError + ")" : ""}</p>`;
+      html += `<p class="meta" style="margin-top:10px;">Debug: ${data.debug.totalFlightsAtAirport} voli trovati per ${data.debug.depIataUpper}, ${data.debug.candidatesFound} corrispondono a icao24 ${data.debug.icao24}${data.debug.fetchError ? " (errore: " + data.debug.fetchError + ")" : ""}</p>`;
     }
   }
 
